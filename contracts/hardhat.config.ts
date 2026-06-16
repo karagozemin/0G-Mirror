@@ -3,6 +3,7 @@ import "@nomicfoundation/hardhat-toolbox";
 import dotenv from "dotenv";
 
 dotenv.config({ path: "../.env" });
+dotenv.config({ path: "../.env.local" });
 dotenv.config();
 
 const privateKey = process.env.PRIVATE_KEY;
