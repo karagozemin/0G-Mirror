@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="0G-Mirror.png" alt="0G Mirror — Verifiable Decision Trails for AI Agents" width="480" />
+  <img src="0G-Mirror.png" alt="0G Mirror — Verifiable Decision Trails for AI Agents" width="200" />
 </p>
 
 # 0G Mirror
