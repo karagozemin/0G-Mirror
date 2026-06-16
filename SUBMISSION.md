@@ -6,6 +6,12 @@
 
 0G Mirror is a verifiable decision layer for AI agents. It records decision traces, stores them on 0G, verifies them through replay, and attests the result on-chain.
 
+# Links
+
+- GitHub repo: https://github.com/karagozemin/0g-Mirror
+- Live demo: https://web-tau-seven-23.vercel.app
+- Demo video: To be added
+
 # Long description
 
 0G Mirror solves a core trust problem for AI agents: when an agent makes a consequential decision, users need proof of what input/context was used, which evidence was considered, what model/config/tool path produced the output, whether replay is consistent, and whether critical evidence was missing.

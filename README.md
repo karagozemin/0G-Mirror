@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="0G-Mirror.png" alt="0G Mirror — Verifiable Decision Trails for AI Agents" width="200" />
+  <img src="0G-Mirror.png" alt="0G Mirror — Verifiable Decision Trails for AI Agents" width="250" />
 </p>
 
 # 0G Mirror
@@ -7,6 +7,10 @@
 **Verifiable Decision Trails for AI Agents**
 
 0G Mirror records, stores, replays, and attests AI-agent decisions on 0G, so anyone can verify why an agent acted and whether the decision is consistent with its evidence.
+
+## Live Demo
+
+https://web-tau-seven-23.vercel.app
 
 ## Live 0G Proof
 
