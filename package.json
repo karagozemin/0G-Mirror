@@ -12,6 +12,7 @@
     "compile": "npm run compile --workspace contracts",
     "test": "npm run test --workspace contracts",
     "deploy": "npm run deploy --workspace contracts",
-    "deploy:0g": "npm run deploy:0g --workspace contracts"
+    "deploy:0g": "npm run deploy:0g --workspace contracts",
+    "proof:real": "node scripts/create-real-proof.mjs"
   }
 }

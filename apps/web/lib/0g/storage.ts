@@ -40,7 +40,7 @@ function parseStorageUri(uri: string) {
 
 export async function uploadJsonTo0G(data: unknown): Promise<UploadResult> {
   const { evmRpc, indexerRpc, privateKey } = storageConfig();
-  const { Indexer, MemData } = await import("@0glabs/0g-ts-sdk");
+  const { Indexer, MemData } = await import("@0gfoundation/0g-storage-ts-sdk");
   const bytes = new TextEncoder().encode(JSON.stringify(data, null, 2));
   const file = new MemData(bytes);
   const [tree, treeError] = await file.merkleTree();
@@ -58,7 +58,8 @@ export async function uploadJsonTo0G(data: unknown): Promise<UploadResult> {
     throw uploadError ?? new Error("0G Storage upload failed.");
   }
 
-  const uploadedRoot = upload.rootHash ?? tree.rootHash();
+  const uploadedRoot = "rootHash" in upload ? upload.rootHash : upload.rootHashes[0] ?? tree.rootHash();
+  const txHash = "txHash" in upload ? upload.txHash : upload.txHashes[0];
   if (!uploadedRoot) {
     throw new Error("0G Storage upload did not return a root hash.");
   }
@@ -66,13 +67,13 @@ export async function uploadJsonTo0G(data: unknown): Promise<UploadResult> {
   return {
     uri: `0g://${uploadedRoot}`,
     root: uploadedRoot,
-    txHash: upload.txHash
+    txHash
   };
 }
 
 export async function downloadJsonFrom0G(uri: string): Promise<unknown> {
   const { indexerRpc } = storageConfig();
-  const { Indexer } = await import("@0glabs/0g-ts-sdk");
+  const { Indexer } = await import("@0gfoundation/0g-storage-ts-sdk");
   const rootHash = parseStorageUri(uri);
   const outputPath = path.join(os.tmpdir(), `0g-mirror-${rootHash.replace(/^0x/, "")}.json`);
   const indexer = new Indexer(indexerRpc);

@@ -28,7 +28,7 @@ AI agents are starting to make decisions with real money, user trust, and operat
 
 0G is not a logo integration in this MVP:
 
-- **0G Storage** stores Decision Trace JSON and Court Verdict JSON using the official `@0glabs/0g-ts-sdk` package.
+- **0G Storage** stores Decision Trace JSON and Court Verdict JSON using the official `@0gfoundation/0g-storage-ts-sdk` package.
 - **0G Chain** stores trace hashes, storage URIs, storage roots, verification status, and court verdict attestations in `MirrorRegistry.sol`.
 - **Replay verification** makes the stored trace useful: Verified, Inconsistent, or Missing Evidence.
 
@@ -153,6 +153,32 @@ The Hardhat config uses `evmVersion: "cancun"` for 0G Chain compatibility.
 11. Verify Both.
 12. Appeal to Olympus.
 13. Show Court Verdict Card with storage URI and attestation ID.
+
+## Real 0G Proof
+
+This repository includes one real end-to-end 0G proof generated on Galileo testnet.
+
+```txt
+Chain ID: 16602
+MirrorRegistry: 0x8c5C403994CC7a5A469bBF82904e504060109858
+Trace ID: 1
+Verification Status: Verified
+Decision Hash: 0x7f1775e02212e8764cefc347a09df82aa33ebe05d377e2bb496fb9c2fe1da884
+0G Storage URI: 0g://0xe58925c613298780175066ae3e2762e6154b152329a3b3c8b532716196ef4aee
+0G Storage Root: 0xe58925c613298780175066ae3e2762e6154b152329a3b3c8b532716196ef4aee
+0G Storage Tx: 0x109b3457bc7a0b0032b1d81bc773f8664c5dbaaa310adb46d73bdb7360757a03
+Register Trace Tx: 0x439d5a8bca2bd17b051738d12124b90a0c5cb3ab5c1cc996a76e45137f3b23de
+Verification Status Tx: 0x7061af685a1c61e3db2ee976034baad35da506b73464a737dace23027eae2515
+```
+
+Proof artifact: `proofs/real-0g-proof.json`
+
+Regenerate a real proof after setting `.env.local`:
+
+```bash
+npm run deploy
+npm run proof:real
+```
 
 ## Limitations
 

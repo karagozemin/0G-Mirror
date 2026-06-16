@@ -1,7 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   experimental: {
-    serverComponentsExternalPackages: ["@0glabs/0g-ts-sdk"]
+    serverComponentsExternalPackages: ["@0gfoundation/0g-storage-ts-sdk"]
   }
 };
 

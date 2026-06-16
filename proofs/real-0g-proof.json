@@ -1,0 +1,91 @@
+{
+  "proof": {
+    "createdAt": "2026-06-16T16:37:40.295Z",
+    "registryAddress": "0x8c5C403994CC7a5A469bBF82904e504060109858",
+    "creator": "0x25055f56F0b43a2075410626b627ca7FB43C9813",
+    "traceId": 1,
+    "decisionHash": "0x7f1775e02212e8764cefc347a09df82aa33ebe05d377e2bb496fb9c2fe1da884",
+    "storageUri": "0g://0xe58925c613298780175066ae3e2762e6154b152329a3b3c8b532716196ef4aee",
+    "storageRoot": "0xe58925c613298780175066ae3e2762e6154b152329a3b3c8b532716196ef4aee",
+    "storageTxHash": "0x109b3457bc7a0b0032b1d81bc773f8664c5dbaaa310adb46d73bdb7360757a03",
+    "registerTxHash": "0x439d5a8bca2bd17b051738d12124b90a0c5cb3ab5c1cc996a76e45137f3b23de",
+    "verificationTxHash": "0x7061af685a1c61e3db2ee976034baad35da506b73464a737dace23027eae2515",
+    "verificationStatus": "Verified",
+    "chainId": 16602
+  },
+  "trace": {
+    "schema": "0g-mirror/decision-trace/v1",
+    "traceId": "real-0g-proof-2026-06-16T16:37:02.047Z",
+    "agent": {
+      "name": "Aegis",
+      "role": "DeFi Risk Analyst",
+      "version": "1.0"
+    },
+    "task": {
+      "title": "DeFi Vault Risk Decision",
+      "input": "Should this vault be trusted?",
+      "context": [
+        "TVL: $2.4M",
+        "Audit: none",
+        "APY: 480%",
+        "Admin key: upgradeable"
+      ]
+    },
+    "model": {
+      "provider": "adapter",
+      "model": "deterministic-risk-v1",
+      "temperature": 0.2,
+      "seed": "aegis:defi-vault:olympus"
+    },
+    "toolsUsed": [
+      "risk_scoring",
+      "evidence_check",
+      "admin_key_review"
+    ],
+    "decision": {
+      "label": "DO_NOT_INVEST",
+      "output": "The vault is too risky.",
+      "publicRationale": "The APY is unusually high, audit evidence is weak or missing, and admin key risk is material."
+    },
+    "evidence": [
+      {
+        "type": "metric",
+        "name": "TVL",
+        "value": "$2.4M"
+      },
+      {
+        "type": "security",
+        "name": "Audit",
+        "value": "none"
+      },
+      {
+        "type": "metric",
+        "name": "APY",
+        "value": "480%"
+      },
+      {
+        "type": "security",
+        "name": "Admin key",
+        "value": "upgradeable"
+      }
+    ],
+    "verification": {
+      "status": "Verified",
+      "replayResult": "Replay matched DO_NOT_INVEST with the same public evidence and config."
+    },
+    "timestamps": {
+      "createdAt": "2026-06-16T16:37:02.047Z"
+    },
+    "hashes": {
+      "inputHash": "0xdff911027ff885367b2324b40ddfc28125a92febdd2c2fcfe498fc56a609e000",
+      "outputHash": "0x98d20d249e15cb6f8ddab3e92fa99f311ca56dbf11ef3b079810bf5587c271c7",
+      "decisionHash": "0x7f1775e02212e8764cefc347a09df82aa33ebe05d377e2bb496fb9c2fe1da884"
+    },
+    "storage": {
+      "mode": "0g",
+      "uri": "0g://0xe58925c613298780175066ae3e2762e6154b152329a3b3c8b532716196ef4aee",
+      "root": "0xe58925c613298780175066ae3e2762e6154b152329a3b3c8b532716196ef4aee",
+      "txHash": "0x109b3457bc7a0b0032b1d81bc773f8664c5dbaaa310adb46d73bdb7360757a03"
+    }
+  }
+}
