@@ -15,6 +15,7 @@ import { Notice } from "@/components/shared/Notice";
 import { Shell } from "@/components/shared/Shell";
 import { StatusPill } from "@/components/shared/StatusPill";
 import { TraceCard } from "@/components/shared/TraceCard";
+import { OperationProgressPanel } from "@/components/shared/OperationProgressPanel";
 import { MirrorBackground } from "@/components/fx/MirrorBackground";
 import { ExplorerValue } from "@/components/shared/ExplorerValue";
 import { txExplorerHref } from "@/lib/0g/explorer";
@@ -53,6 +54,10 @@ export function ArenaClient() {
   const [notice, setNotice] = useState<string | null>(null);
   const [battling, setBattling] = useState(false);
   const [appealProgress, setAppealProgress] = useState<AppealProgress | null>(null);
+  const hasBothTraces = Boolean(traceA && traceB);
+  const hasVerifiedBoth = Boolean(
+    traceA?.verification.status === "Verified" && traceB?.verification.status === "Verified"
+  );
 
   function setAppealStep(step: number, phase: AppealPhase, label: string, detail: string) {
     setAppealProgress({
@@ -94,12 +99,16 @@ export function ArenaClient() {
     const updatedB = await updateTraceStatus(verifiedB);
     setTraceA(updatedA.trace);
     setTraceB(updatedB.trace);
-    setNotice(updatedA.notice ?? updatedB.notice ?? "Both decisions replayed.");
+    setNotice(updatedA.notice ?? updatedB.notice ?? "Both decisions replayed. Appeal to Olympus unlocked.");
     setBusy(null);
   }
 
   async function appeal() {
     if (!traceA || !traceB) return;
+    if (!hasVerifiedBoth) {
+      setNotice("Verify Both Traces first, then Appeal to Olympus.");
+      return;
+    }
     setBusy("appeal");
     setNotice(null);
     setAppealStep(1, "storage", "Preparing 0G Storage payloads", "Checking both traces before upload.");
@@ -275,18 +284,25 @@ export function ArenaClient() {
         {/* Actions */}
         <div className="mt-6 glass rounded-2xl p-5">
           <div className="grid gap-3 sm:grid-cols-2">
-            <Button onClick={verifyBoth} loading={busy === "verify"} disabled={!traceA || !traceB || busy !== null}>
+            <Button onClick={verifyBoth} loading={busy === "verify"} disabled={!hasBothTraces || busy !== null}>
               <ShieldCheck className="h-4 w-4" />
               Verify Both Traces
             </Button>
-            <Button onClick={appeal} loading={busy === "appeal"} disabled={!traceA || !traceB || busy !== null} variant="gold">
+            <Button
+              onClick={appeal}
+              loading={busy === "appeal"}
+              disabled={!hasBothTraces || !hasVerifiedBoth || busy !== null}
+              variant="gold"
+              title={!hasVerifiedBoth ? "Verify Both Traces first" : undefined}
+            >
               <Gavel className="h-4 w-4" />
               Appeal to Olympus
             </Button>
           </div>
-          <AnimatePresence>
-            {appealProgress ? <AppealProgressPanel progress={appealProgress} /> : null}
-          </AnimatePresence>
+          <p className="mt-3 text-sm text-silver/45">
+            Step order: verify both traces first, then open the appeal.
+          </p>
+          <AnimatePresence>{appealProgress ? <OperationProgressPanel progress={appealProgress} totalSteps={APPEAL_STEP_TOTAL} /> : null}</AnimatePresence>
         </div>
 
         {/* Verdict */}
@@ -303,49 +319,6 @@ export function ArenaClient() {
         </AnimatePresence>
       </section>
     </Shell>
-  );
-}
-
-function AppealProgressPanel({ progress }: { progress: AppealProgress }) {
-  const isComplete = progress.phase === "complete";
-  const Icon = isComplete ? CheckCircle2 : progress.phase === "judge" ? Gavel : progress.phase === "chain" ? ShieldCheck : Database;
-
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 10, height: 0 }}
-      animate={{ opacity: 1, y: 0, height: "auto" }}
-      exit={{ opacity: 0, y: 10, height: 0 }}
-      className="mt-4 overflow-hidden rounded-xl border border-gold/20 bg-black/25 p-4"
-    >
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex min-w-0 items-center gap-3">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-gold/30 bg-gold/10 text-gold">
-            {isComplete ? <Icon className="h-5 w-5" /> : <Loader2 className="h-5 w-5 animate-spin" />}
-          </div>
-          <div className="min-w-0">
-            <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-gold/70">{progress.label}</p>
-            <p className="mt-1 truncate text-sm font-medium text-white" title={progress.detail}>
-              {progress.detail}
-            </p>
-          </div>
-        </div>
-        <div className="flex items-center justify-between gap-3 sm:justify-end">
-          <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 font-mono text-[10px] uppercase tracking-[0.14em] text-silver/60">
-            Step {progress.step}/{APPEAL_STEP_TOTAL}
-          </span>
-          <span className="min-w-12 text-right font-mono text-sm font-bold text-gold">{progress.percent}%</span>
-        </div>
-      </div>
-
-      <div className="mt-4 h-2 overflow-hidden rounded-full bg-white/[0.07]">
-        <motion.div
-          initial={false}
-          animate={{ width: `${progress.percent}%` }}
-          transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1] }}
-          className="h-full rounded-full bg-gradient-to-r from-gold via-beam to-gold shadow-[0_0_20px_rgba(251,191,36,0.32)]"
-        />
-      </div>
-    </motion.div>
   );
 }
 

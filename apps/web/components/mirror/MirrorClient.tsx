@@ -22,11 +22,15 @@ import { Notice } from "@/components/shared/Notice";
 import { Shell } from "@/components/shared/Shell";
 import { TraceCard } from "@/components/shared/TraceCard";
 import { StatusPill } from "@/components/shared/StatusPill";
+import { OperationProgressPanel, type OperationProgressState } from "@/components/shared/OperationProgressPanel";
 import { MirrorBackground } from "@/components/fx/MirrorBackground";
 import { ensureRegisteredTrace, ensureStoredTrace, updateTraceStatus } from "@/components/shared/client-actions";
 
 type BusyState = "run" | "store" | "register" | "verify" | null;
 const RUN_DECISION_DELAY_MS = 2400;
+const TRACE_OPERATION_STEP_TOTAL = 3;
+
+type TraceOperationPhase = "storage" | "chain" | "verify" | "complete";
 
 const pipeline = [
   { id: "select", label: "Select" },
@@ -48,10 +52,23 @@ export function MirrorClient() {
   const [trace, setTrace] = useState<DecisionTrace | null>(null);
   const [busy, setBusy] = useState<BusyState>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [operationProgress, setOperationProgress] = useState<OperationProgressState | null>(null);
 
   const selectedAgent = agents[agentId];
   const selectedTask = tasks[taskId];
   const context = useMemo(() => selectedTask.context.join(" · "), [selectedTask]);
+  const hasStoredTrace = Boolean(trace?.storage?.uri);
+  const hasRegisteredTrace = Boolean(trace?.attestation?.traceId);
+  const isVerified = trace?.verification.status === "Verified";
+  const workflowHint = !trace
+    ? "Run Decision first"
+    : !hasStoredTrace
+      ? "Step 1 of 3: Store on 0G"
+      : !hasRegisteredTrace
+        ? "Step 2 of 3: Register On-chain"
+        : !isVerified
+          ? "Step 3 of 3: Verify Decision"
+          : "Workflow complete";
 
   const activeStep = busy === "run"
     ? "decide"
@@ -65,11 +82,24 @@ export function MirrorClient() {
           ? "register"
           : "verify";
 
+  function setOperationStep(step: number, phase: TraceOperationPhase, label: string, detail: string) {
+    setOperationProgress({
+      phase,
+      label,
+      detail,
+      step,
+      percent: Math.min(100, Math.round((step / TRACE_OPERATION_STEP_TOTAL) * 100))
+    });
+  }
+
+  const pause = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
   async function runDecision() {
     const currentAgentId = agentId;
     const currentTaskId = taskId;
     setBusy("run");
     setNotice(null);
+    setOperationProgress(null);
     await new Promise((resolve) => setTimeout(resolve, RUN_DECISION_DELAY_MS));
     const nextTrace = runAgentDecision(currentAgentId, currentTaskId);
     saveTrace(nextTrace);
@@ -79,30 +109,98 @@ export function MirrorClient() {
 
   async function storeTrace() {
     if (!trace) return;
+    if (hasStoredTrace) {
+      setNotice("Store on 0G already completed. Continue with Register On-chain.");
+      return;
+    }
     setBusy("store");
+    setNotice(null);
+    setOperationStep(1, "storage", "Preparing 0G Storage payload", "Serializing the decision trace and evidence bundle.");
+    await pause(140);
     const result = await ensureStoredTrace(trace);
     setTrace(result.trace);
     setNotice(result.notice);
+    setOperationStep(
+      2,
+      "storage",
+      "Uploading to 0G Storage",
+      result.notice ? "Local fallback saved the payload in this browser." : "Waiting for 0G Storage confirmation."
+    );
+    await pause(180);
+    setOperationStep(
+      3,
+      "complete",
+      "Storage recorded",
+      result.notice ?? "Decision trace is available in 0G Storage."
+    );
     setBusy(null);
   }
 
   async function registerTrace() {
     if (!trace) return;
+    if (!hasStoredTrace) {
+      setNotice("Store on 0G first, then register the trace on-chain.");
+      return;
+    }
+    if (hasRegisteredTrace) {
+      setNotice("Register On-chain already completed. Continue with Verify Decision.");
+      return;
+    }
     setBusy("register");
+    setNotice(null);
+    setOperationStep(1, "chain", "Preparing chain attestation", "Reading the storage URI and trace root.");
+    await pause(140);
     const result = await ensureRegisteredTrace(trace);
     setTrace(result.trace);
     setNotice(result.notice);
+    setOperationStep(
+      2,
+      "chain",
+      "Registering on-chain",
+      result.notice ? "Local fallback recorded the attestation in this browser." : "Waiting for registry confirmation."
+    );
+    await pause(180);
+    setOperationStep(
+      3,
+      "complete",
+      "Attestation ready",
+      result.notice ?? "Trace ID and tx hash are recorded on-chain."
+    );
     setBusy(null);
   }
 
   async function verifyTrace() {
     if (!trace) return;
+    if (!hasRegisteredTrace) {
+      setNotice("Register On-chain first, then verify the decision.");
+      return;
+    }
+    if (isVerified) {
+      setNotice("Decision already verified.");
+      return;
+    }
     setBusy("verify");
+    setNotice(null);
+    setOperationStep(1, "verify", "Replaying decision", "Applying the verifier to the current trace.");
+    await pause(140);
     const verified = applyVerification(trace);
     const result = await updateTraceStatus(verified);
     saveTrace(result.trace);
     setTrace(result.trace);
     setNotice(result.notice ?? "Replay verification complete.");
+    setOperationStep(
+      2,
+      "verify",
+      "Updating verification status",
+      result.notice ? "Local fallback stored the replay result." : "Persisting the replay result on-chain."
+    );
+    await pause(180);
+    setOperationStep(
+      3,
+      "complete",
+      "Replay complete",
+      result.notice ?? `Verification status: ${result.trace.verification.status}.`
+    );
     setBusy(null);
   }
 
@@ -182,6 +280,7 @@ export function MirrorClient() {
               </div>
               <p className="mt-2 max-w-3xl text-sm leading-relaxed text-silver/60">{context}</p>
             </div>
+            <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-silver/45">{workflowHint}</p>
             <Button
               onClick={runDecision}
               loading={busy === "run"}
@@ -278,19 +377,20 @@ export function MirrorClient() {
                   <TraceCard trace={trace} />
                   <div className="glass rounded-2xl p-5">
                     <div className="grid gap-3 sm:grid-cols-3">
-                      <Button onClick={storeTrace} loading={busy === "store"}>
+                        <Button onClick={storeTrace} loading={busy === "store"} disabled={busy !== null || !trace || hasStoredTrace}>
                         <Database className="h-4 w-4" />
-                        Store on 0G
+                          1. Store on 0G
                       </Button>
-                      <Button onClick={registerTrace} loading={busy === "register"}>
+                        <Button onClick={registerTrace} loading={busy === "register"} disabled={busy !== null || !trace || !hasStoredTrace || hasRegisteredTrace}>
                         <Network className="h-4 w-4" />
-                        Register On-chain
+                          2. Register On-chain
                       </Button>
-                      <Button onClick={verifyTrace} loading={busy === "verify"} variant="primary">
+                        <Button onClick={verifyTrace} loading={busy === "verify"} disabled={busy !== null || !trace || !hasRegisteredTrace || isVerified} variant="primary">
                         <CheckCircle2 className="h-4 w-4" />
-                        Verify Decision
+                          3. Verify Decision
                       </Button>
                     </div>
+                    <AnimatePresence>{operationProgress ? <OperationProgressPanel progress={operationProgress} totalSteps={TRACE_OPERATION_STEP_TOTAL} /> : null}</AnimatePresence>
                     <div className="mt-4 flex flex-wrap items-center justify-between gap-3 text-sm text-silver/45">
                       <span className="font-mono text-xs">Stored · Verified · Attested</span>
                       <Link href={`/verify/${trace.traceId}`} className="font-semibold text-beam transition hover:text-beam/75">
