@@ -1,7 +1,7 @@
 # 0G Mirror
 
 <p align="center">
-    <img src="apps/web/public/0g-mirror-logo.png" alt="0G Mirror logo" width="200" />
+    <img src="0g-mirror.png" alt="0G Mirror logo" width="250" />
 </p>
 
 Verifiable Decision Trails for AI Agents
