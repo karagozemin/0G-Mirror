@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Crown, Database, Gavel, Scale, ShieldCheck, Swords, Trophy, Zap } from "lucide-react";
+import { CheckCircle2, Crown, Database, Gavel, Loader2, Scale, ShieldCheck, Swords, Trophy, Zap } from "lucide-react";
 import { agents, runAgentDecision, type AgentId } from "@/lib/ai/agent";
 import { applyVerification } from "@/lib/ai/verifier";
 import { runOlympusJudge } from "@/lib/ai/judge";
@@ -19,12 +19,23 @@ import { MirrorBackground } from "@/components/fx/MirrorBackground";
 import { ExplorerValue } from "@/components/shared/ExplorerValue";
 import { txExplorerHref } from "@/lib/0g/explorer";
 import {
-  ensureStoredAndRegisteredTrace,
+  ensureRegisteredTrace,
+  ensureStoredTrace,
   storeAndAttestVerdict,
   updateTraceStatus
 } from "@/components/shared/client-actions";
 
 type BusyState = "start" | "verify" | "appeal" | null;
+type AppealPhase = "storage" | "chain" | "judge" | "complete";
+type AppealProgress = {
+  phase: AppealPhase;
+  label: string;
+  detail: string;
+  step: number;
+  percent: number;
+};
+
+const APPEAL_STEP_TOTAL = 8;
 
 const agentStyles: Record<AgentId, { gradient: string; border: string; text: string }> = {
   aegis: { gradient: "from-cyan/20 to-cyan/5", border: "border-cyan/40", text: "text-cyan" },
@@ -41,6 +52,17 @@ export function ArenaClient() {
   const [busy, setBusy] = useState<BusyState>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [battling, setBattling] = useState(false);
+  const [appealProgress, setAppealProgress] = useState<AppealProgress | null>(null);
+
+  function setAppealStep(step: number, phase: AppealPhase, label: string, detail: string) {
+    setAppealProgress({
+      phase,
+      label,
+      detail,
+      step,
+      percent: Math.min(92, Math.round((step / APPEAL_STEP_TOTAL) * 92))
+    });
+  }
 
   function startBattle() {
     if (agentA === agentB) return;
@@ -48,6 +70,7 @@ export function ArenaClient() {
     setNotice(null);
     setBattling(true);
     setVerdict(null);
+    setAppealProgress(null);
 
     setTimeout(() => {
       const nextA = runAgentDecision(agentA, "defi-vault");
@@ -64,6 +87,7 @@ export function ArenaClient() {
   async function verifyBoth() {
     if (!traceA || !traceB) return;
     setBusy("verify");
+    setAppealProgress(null);
     const verifiedA = applyVerification(traceA);
     const verifiedB = applyVerification(traceB);
     const updatedA = await updateTraceStatus(verifiedA);
@@ -78,20 +102,67 @@ export function ArenaClient() {
     if (!traceA || !traceB) return;
     setBusy("appeal");
     setNotice(null);
+    setAppealStep(1, "storage", "Preparing 0G Storage payloads", "Checking both traces before upload.");
 
-    const verifiedA = traceA.verification.status === "Pending" ? applyVerification(traceA) : traceA;
-    const verifiedB = traceB.verification.status === "Pending" ? applyVerification(traceB) : traceB;
-    const registeredA = await ensureStoredAndRegisteredTrace(verifiedA);
-    const registeredB = await ensureStoredAndRegisteredTrace(verifiedB);
-    const claim = "Trace B ignored critical risk evidence.";
-    const nextVerdict = runOlympusJudge(registeredA.trace, registeredB.trace, claim);
-    const attestedVerdict = await storeAndAttestVerdict(nextVerdict, registeredA.trace, registeredB.trace);
+    try {
+      let nextNotice: string | null = null;
+      const rememberNotice = (value: string | null) => {
+        nextNotice = nextNotice ?? value;
+      };
 
-    setTraceA(registeredA.trace);
-    setTraceB(registeredB.trace);
-    setVerdict(attestedVerdict.verdict);
-    setNotice(attestedVerdict.notice ?? registeredA.notice ?? registeredB.notice ?? "Olympus verdict attested.");
-    setBusy(null);
+      const verifiedA = traceA.verification.status === "Pending" ? applyVerification(traceA) : traceA;
+      const verifiedB = traceB.verification.status === "Pending" ? applyVerification(traceB) : traceB;
+
+      setAppealStep(2, "storage", "0G Storage: challenger trace", "Uploading Trace A evidence and hashes.");
+      const storedA = await ensureStoredTrace(verifiedA);
+      rememberNotice(storedA.notice);
+
+      setAppealStep(3, "chain", "0G Chain: challenger attestation", "Waiting for Trace A registration confirmation.");
+      const registeredA = await ensureRegisteredTrace(storedA.trace);
+      rememberNotice(registeredA.notice);
+
+      setAppealStep(4, "storage", "0G Storage: defender trace", "Uploading Trace B evidence and hashes.");
+      const storedB = await ensureStoredTrace(verifiedB);
+      rememberNotice(storedB.notice);
+
+      setAppealStep(5, "chain", "0G Chain: defender attestation", "Waiting for Trace B registration confirmation.");
+      const registeredB = await ensureRegisteredTrace(storedB.trace);
+      rememberNotice(registeredB.notice);
+
+      setAppealStep(6, "judge", "Olympus Judge", "Comparing evidence coverage and replay status.");
+      const claim = "Trace B ignored critical risk evidence.";
+      const nextVerdict = runOlympusJudge(registeredA.trace, registeredB.trace, claim);
+
+      const attestedVerdict = await storeAndAttestVerdict(
+        nextVerdict,
+        registeredA.trace,
+        registeredB.trace,
+        (phase) => {
+          if (phase === "storage") {
+            setAppealStep(7, "storage", "0G Storage: court verdict", "Uploading the Olympus verdict record.");
+          }
+          if (phase === "chain") {
+            setAppealStep(8, "chain", "0G Chain: verdict attestation", "Waiting for verdict registration confirmation.");
+          }
+        }
+      );
+
+      setAppealProgress({
+        phase: "complete",
+        label: "Olympus verdict attested",
+        detail: "0G Storage URI and chain attestation are ready.",
+        step: APPEAL_STEP_TOTAL,
+        percent: 100
+      });
+      setTraceA(registeredA.trace);
+      setTraceB(registeredB.trace);
+      setVerdict(attestedVerdict.verdict);
+      setNotice(attestedVerdict.notice ?? nextNotice ?? "Olympus verdict attested.");
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "Olympus appeal failed.");
+    } finally {
+      setBusy(null);
+    }
   }
 
   return (
@@ -147,7 +218,7 @@ export function ArenaClient() {
             <Button
               onClick={startBattle}
               loading={busy === "start"}
-              disabled={agentA === agentB}
+              disabled={agentA === agentB || busy !== null}
               variant="gold"
               size="lg"
             >
@@ -204,15 +275,18 @@ export function ArenaClient() {
         {/* Actions */}
         <div className="mt-6 glass rounded-2xl p-5">
           <div className="grid gap-3 sm:grid-cols-2">
-            <Button onClick={verifyBoth} loading={busy === "verify"} disabled={!traceA || !traceB}>
+            <Button onClick={verifyBoth} loading={busy === "verify"} disabled={!traceA || !traceB || busy !== null}>
               <ShieldCheck className="h-4 w-4" />
               Verify Both Traces
             </Button>
-            <Button onClick={appeal} loading={busy === "appeal"} disabled={!traceA || !traceB} variant="gold">
+            <Button onClick={appeal} loading={busy === "appeal"} disabled={!traceA || !traceB || busy !== null} variant="gold">
               <Gavel className="h-4 w-4" />
               Appeal to Olympus
             </Button>
           </div>
+          <AnimatePresence>
+            {appealProgress ? <AppealProgressPanel progress={appealProgress} /> : null}
+          </AnimatePresence>
         </div>
 
         {/* Verdict */}
@@ -229,6 +303,49 @@ export function ArenaClient() {
         </AnimatePresence>
       </section>
     </Shell>
+  );
+}
+
+function AppealProgressPanel({ progress }: { progress: AppealProgress }) {
+  const isComplete = progress.phase === "complete";
+  const Icon = isComplete ? CheckCircle2 : progress.phase === "judge" ? Gavel : progress.phase === "chain" ? ShieldCheck : Database;
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 10, height: 0 }}
+      animate={{ opacity: 1, y: 0, height: "auto" }}
+      exit={{ opacity: 0, y: 10, height: 0 }}
+      className="mt-4 overflow-hidden rounded-xl border border-gold/20 bg-black/25 p-4"
+    >
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex min-w-0 items-center gap-3">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-gold/30 bg-gold/10 text-gold">
+            {isComplete ? <Icon className="h-5 w-5" /> : <Loader2 className="h-5 w-5 animate-spin" />}
+          </div>
+          <div className="min-w-0">
+            <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-gold/70">{progress.label}</p>
+            <p className="mt-1 truncate text-sm font-medium text-white" title={progress.detail}>
+              {progress.detail}
+            </p>
+          </div>
+        </div>
+        <div className="flex items-center justify-between gap-3 sm:justify-end">
+          <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 font-mono text-[10px] uppercase tracking-[0.14em] text-silver/60">
+            Step {progress.step}/{APPEAL_STEP_TOTAL}
+          </span>
+          <span className="min-w-12 text-right font-mono text-sm font-bold text-gold">{progress.percent}%</span>
+        </div>
+      </div>
+
+      <div className="mt-4 h-2 overflow-hidden rounded-full bg-white/[0.07]">
+        <motion.div
+          initial={false}
+          animate={{ width: `${progress.percent}%` }}
+          transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1] }}
+          className="h-full rounded-full bg-gradient-to-r from-gold via-cyan to-mint shadow-[0_0_20px_rgba(251,191,36,0.32)]"
+        />
+      </div>
+    </motion.div>
   );
 }
 

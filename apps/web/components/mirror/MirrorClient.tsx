@@ -161,6 +161,35 @@ export function MirrorClient() {
           </div>
         ) : null}
 
+        <div className="mb-6 glass rounded-2xl p-4 sm:p-5">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div className="min-w-0">
+              <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-silver/40">Selected run</p>
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                <span className="rounded-full border border-cyan/25 bg-cyan/10 px-3 py-1 text-sm font-semibold text-cyan">
+                  {selectedAgent.name}
+                </span>
+                <ChevronRight className="h-4 w-4 text-silver/25" />
+                <span className="rounded-full border border-gold/25 bg-gold/10 px-3 py-1 text-sm font-semibold text-gold">
+                  {selectedTask.title}
+                </span>
+              </div>
+              <p className="mt-2 max-w-3xl text-sm leading-relaxed text-silver/60">{context}</p>
+            </div>
+            <Button
+              onClick={runDecision}
+              loading={busy === "run"}
+              disabled={busy !== null}
+              variant="primary"
+              size="lg"
+              className="w-full lg:w-auto lg:min-w-[260px]"
+            >
+              <Play className="h-4 w-4" />
+              Run Decision
+            </Button>
+          </div>
+        </div>
+
         <div className="grid gap-6 lg:grid-cols-[0.85fr_1.15fr]">
           {/* Left: Controls */}
           <div className="space-y-5">
@@ -222,14 +251,6 @@ export function MirrorClient() {
               </div>
             </div>
 
-            <div className="glass rounded-2xl p-5">
-              <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-silver/40">Context</p>
-              <p className="mt-2 font-mono text-sm leading-relaxed text-silver/75">{context}</p>
-              <Button onClick={runDecision} loading={busy === "run"} variant="primary" size="lg" className="mt-5 w-full">
-                <Play className="h-4 w-4" />
-                Run Decision
-              </Button>
-            </div>
           </div>
 
           {/* Right: Trace output */}

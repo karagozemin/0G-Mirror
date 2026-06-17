@@ -132,12 +132,14 @@ export async function updateTraceStatus(trace: DecisionTrace) {
 export async function storeAndAttestVerdict(
   verdict: CourtVerdict,
   traceA: DecisionTrace,
-  traceB: DecisionTrace
+  traceB: DecisionTrace,
+  onProgress?: (phase: "storage" | "chain") => void
 ) {
   let nextVerdict = verdict;
   let notice: string | null = null;
 
   try {
+    onProgress?.("storage");
     const storage = await postJson<CourtVerdict["storage"]>("/api/storage/upload", {
       data: verdict
     });
@@ -154,6 +156,7 @@ export async function storeAndAttestVerdict(
 
   if (typeof traceIdA === "number" && typeof traceIdB === "number" && typeof winnerTraceId === "number") {
     try {
+      onProgress?.("chain");
       const attestation = await postJson<CourtVerdict["attestation"]>("/api/chain/register-verdict", {
         traceIdA,
         traceIdB,
