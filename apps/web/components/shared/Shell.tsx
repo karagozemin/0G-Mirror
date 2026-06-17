@@ -24,7 +24,11 @@ export function Shell({ children }: { children: React.ReactNode }) {
       <header className="sticky top-3 z-50 px-3 sm:px-4 lg:px-6">
         <div className="mx-auto flex max-w-7xl flex-col gap-3 rounded-[28px] border border-white/10 bg-[rgba(5,9,16,0.78)] px-4 py-3 shadow-panel-strong backdrop-blur-2xl sm:flex-row sm:items-center">
           <Link href="/" className="group flex items-center gap-3 shrink-0">
-            <motion.div whileHover={{ y: -1 }} transition={{ type: "spring", stiffness: 420, damping: 28 }}>
+            <motion.div
+              className="logo-wrap p-1.5 rounded-lg bg-white/[0.03] ring-1 ring-white/6 shadow-[0_10px_40px_rgba(34,211,238,0.06)]"
+              whileHover={{ y: -1 }}
+              transition={{ type: "spring", stiffness: 420, damping: 28 }}
+            >
               <Image
                 src="/0g-mirror-logo.png"
                 alt="0G Mirror"

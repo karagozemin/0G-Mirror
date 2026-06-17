@@ -144,14 +144,18 @@ export function LandingPage() {
                 className="relative"
               >
                 <div className="absolute -inset-8 rounded-full bg-cyan/10 blur-3xl" />
-                <Image
-                  src="/0g-mirror-logo.png"
-                  alt="0G Mirror"
-                  width={420}
-                  height={420}
-                  className="relative h-auto w-[340px] drop-shadow-[0_0_60px_rgba(34,211,238,0.25)]"
-                  priority
-                />
+                <div className="logo-hero relative flex items-center justify-center">
+                  <div className="logo-hero-frame">
+                    <Image
+                      src="/0g-mirror-logo.png"
+                      alt="0G Mirror"
+                      width={420}
+                      height={420}
+                      className="relative h-auto w-[340px]"
+                      priority
+                    />
+                  </div>
+                </div>
               </motion.div>
             </HeroReveal>
           </div>

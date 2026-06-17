@@ -256,3 +256,53 @@ select {
 .text-balance {
   text-wrap: balance;
 }
+
+/* ── Logo container styling ── */
+.logo-wrap {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.28s;
+}
+.logo-wrap:hover {
+  transform: translateY(-2px);
+}
+.logo-wrap img {
+  display: block;
+}
+
+/* ── Hero logo card ── */
+.logo-hero {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px;
+  will-change: transform;
+}
+.logo-hero-frame {
+  border-radius: 16px;
+  padding: 28px;
+  background: linear-gradient(180deg, rgba(6,12,20,0.9), rgba(3,5,8,0.85));
+  border: 1px solid rgba(255,255,255,0.06);
+  box-shadow: 0 10px 40px rgba(2,6,12,0.6), 0 0 48px rgba(34,211,238,0.08);
+  transition: transform 0.36s cubic-bezier(0.16,1,0.3,1), box-shadow 0.36s;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.logo-hero-frame:hover {
+  transform: translateY(-6px) scale(1.02);
+  box-shadow: 0 20px 70px rgba(2,6,12,0.7), 0 0 80px rgba(34,211,238,0.12);
+}
+.logo-hero-frame img {
+  display: block;
+  filter: saturate(1.06) contrast(1.02);
+}
+.logo-hero-frame::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 18px;
+  pointer-events: none;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.02), inset 0 -8px 32px rgba(0,0,0,0.5);
+}
