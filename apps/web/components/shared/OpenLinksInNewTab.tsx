@@ -15,6 +15,17 @@ export function OpenLinksInNewTab() {
       const anchor = target.closest("a[href]") as HTMLAnchorElement | null;
       if (!anchor?.href) return;
 
+      // Ignore in-page anchors and same-origin links so internal navigation is unaffected.
+      const rawHref = anchor.getAttribute("href") ?? "";
+      if (rawHref.startsWith("#")) return;
+
+      try {
+        const url = new URL(anchor.href, location.href);
+        if (url.origin === location.origin) return;
+      } catch (e) {
+        return;
+      }
+
       event.preventDefault();
       event.stopPropagation();
       window.open(anchor.href, "_blank", "noopener,noreferrer");

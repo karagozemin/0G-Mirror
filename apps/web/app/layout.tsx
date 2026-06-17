@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { IBM_Plex_Mono, Manrope, Space_Grotesk } from "next/font/google";
 import "./globals.css";
+import "@rainbow-me/rainbowkit/styles.css";
 import { OpenLinksInNewTab } from "@/components/shared/OpenLinksInNewTab";
 import WalletProvider from "@/components/wallet/WalletProvider";
 
