@@ -26,6 +26,7 @@ import { MirrorBackground } from "@/components/fx/MirrorBackground";
 import { ensureRegisteredTrace, ensureStoredTrace, updateTraceStatus } from "@/components/shared/client-actions";
 
 type BusyState = "run" | "store" | "register" | "verify" | null;
+const RUN_DECISION_DELAY_MS = 2400;
 
 const pipeline = [
   { id: "select", label: "Select" },
@@ -52,7 +53,9 @@ export function MirrorClient() {
   const selectedTask = tasks[taskId];
   const context = useMemo(() => selectedTask.context.join(" · "), [selectedTask]);
 
-  const activeStep = !trace
+  const activeStep = busy === "run"
+    ? "decide"
+    : !trace
     ? "select"
     : !trace.storage?.uri
       ? "decide"
@@ -62,10 +65,13 @@ export function MirrorClient() {
           ? "register"
           : "verify";
 
-  function runDecision() {
+  async function runDecision() {
+    const currentAgentId = agentId;
+    const currentTaskId = taskId;
     setBusy("run");
     setNotice(null);
-    const nextTrace = runAgentDecision(agentId, taskId);
+    await new Promise((resolve) => setTimeout(resolve, RUN_DECISION_DELAY_MS));
+    const nextTrace = runAgentDecision(currentAgentId, currentTaskId);
     saveTrace(nextTrace);
     setTrace(nextTrace);
     setBusy(null);
@@ -203,10 +209,11 @@ export function MirrorClient() {
                   <motion.button
                     key={agent.id}
                     onClick={() => setAgentId(agent.id)}
+                    disabled={busy !== null}
                     whileHover={{ y: -2, scale: 1.01 }}
                     whileTap={{ scale: 0.985 }}
                     transition={{ type: "spring", stiffness: 520, damping: 28 }}
-                    className={`agent-card ${agentColors[agent.id]} rounded-xl p-4 text-left ${agentId === agent.id ? "selected" : ""}`}
+                    className={`agent-card ${agentColors[agent.id]} rounded-xl p-4 text-left disabled:cursor-not-allowed disabled:opacity-55 ${agentId === agent.id ? "selected" : ""}`}
                   >
                     <div className="flex items-center gap-3">
                       <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-current/30 bg-current/10 text-lg font-bold text-current">
@@ -235,6 +242,7 @@ export function MirrorClient() {
                   <motion.button
                     key={task.id}
                     onClick={() => setTaskId(task.id)}
+                    disabled={busy !== null}
                     whileHover={{ y: -2, scale: 1.01 }}
                     whileTap={{ scale: 0.985 }}
                     transition={{ type: "spring", stiffness: 520, damping: 28 }}
@@ -242,7 +250,7 @@ export function MirrorClient() {
                       taskId === task.id
                         ? "border-gold/50 bg-gold/8 shadow-glow-gold"
                         : "border-line bg-white/[0.02] hover:border-gold/25 hover:bg-white/[0.04]"
-                    }`}
+                    } disabled:cursor-not-allowed disabled:opacity-55`}
                   >
                     <span className="font-display font-bold text-white">{task.title}</span>
                     <span className="mt-1 block text-sm text-silver/55">{task.input}</span>
@@ -256,7 +264,9 @@ export function MirrorClient() {
           {/* Right: Trace output */}
           <div className="space-y-5">
             <AnimatePresence mode="wait">
-              {trace ? (
+              {busy === "run" ? (
+                <DecisionLoadingCard agentName={selectedAgent.name} taskTitle={selectedTask.title} />
+              ) : trace ? (
                 <motion.div
                   key={trace.traceId}
                   initial={{ opacity: 0, scale: 0.97 }}
@@ -319,5 +329,39 @@ export function MirrorClient() {
         </div>
       </section>
     </Shell>
+  );
+}
+
+function DecisionLoadingCard({ agentName, taskTitle }: { agentName: string; taskTitle: string }) {
+  return (
+    <motion.div
+      key="running"
+      initial={{ opacity: 0, scale: 0.97 }}
+      animate={{ opacity: 1, scale: 1 }}
+      exit={{ opacity: 0, scale: 0.97 }}
+      transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
+      className="glass flex min-h-[580px] items-center justify-center rounded-2xl p-8 text-center"
+    >
+      <div>
+        <div className="relative mx-auto flex h-28 w-28 items-center justify-center">
+          <motion.div
+            animate={{ rotate: 360 }}
+            transition={{ duration: 1.15, repeat: Infinity, ease: "linear" }}
+            className="absolute inset-0 rounded-full border-2 border-cyan/10 border-t-cyan border-r-gold shadow-[0_0_34px_rgba(34,211,238,0.18)]"
+          />
+          <motion.div
+            animate={{ scale: [0.88, 1.04, 0.88], opacity: [0.65, 1, 0.65] }}
+            transition={{ duration: 1.7, repeat: Infinity, ease: "easeInOut" }}
+            className="flex h-16 w-16 items-center justify-center rounded-full border border-cyan/30 bg-cyan/10"
+          >
+            <FileJson className="h-7 w-7 text-cyan" />
+          </motion.div>
+        </div>
+        <h2 className="mt-6 font-display text-2xl font-bold text-white">Generating Decision Trace</h2>
+        <p className="mt-3 font-mono text-xs text-silver/35">
+          {agentName} · {taskTitle}
+        </p>
+      </div>
+    </motion.div>
   );
 }
