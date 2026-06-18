@@ -25,6 +25,8 @@ import { StatusPill } from "@/components/shared/StatusPill";
 import { OperationProgressPanel, type OperationProgressState } from "@/components/shared/OperationProgressPanel";
 import { MirrorBackground } from "@/components/fx/MirrorBackground";
 import { ensureStoredTrace, ensureRegisteredTrace, updateTraceStatus } from "@/components/shared/client-actions";
+import { formatWalletError } from "@/lib/wallet/errors";
+import { useWalletPipeline } from "@/lib/wallet/use-wallet-pipeline";
 
 type BusyState = "run" | "store" | "register" | "verify" | null;
 const RUN_DECISION_DELAY_MS = 2400;
@@ -52,7 +54,9 @@ export function MirrorClient() {
   const [trace, setTrace] = useState<DecisionTrace | null>(null);
   const [busy, setBusy] = useState<BusyState>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [noticeVariant, setNoticeVariant] = useState<"warn" | "success" | "info">("success");
   const [operationProgress, setOperationProgress] = useState<OperationProgressState | null>(null);
+  const { ensureConnected, wrongNetwork } = useWalletPipeline();
 
   const selectedAgent = agents[agentId];
   const selectedTask = tasks[taskId];
@@ -92,8 +96,6 @@ export function MirrorClient() {
     });
   }
 
-  const pause = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
-
   async function runDecision() {
     const currentAgentId = agentId;
     const currentTaskId = taskId;
@@ -107,102 +109,130 @@ export function MirrorClient() {
     setBusy(null);
   }
 
+  function showNotice(message: string, variant: "warn" | "success" | "info" = "success") {
+    setNotice(message);
+    setNoticeVariant(variant);
+  }
+
   async function storeTrace() {
     if (!trace) return;
     if (hasStoredTrace) {
-      setNotice("Store on 0G already completed. Continue with Register On-chain.");
+      showNotice("Store on 0G already completed. Continue with Register On-chain.", "info");
       return;
     }
+    try {
+      ensureConnected();
+    } catch (error) {
+      showNotice(formatWalletError(error), "warn");
+      return;
+    }
+    if (wrongNetwork) {
+      showNotice("Switch to 0G Galileo Testnet in your wallet, then try again.", "warn");
+    }
+
     setBusy("store");
     setNotice(null);
     setOperationStep(1, "storage", "Preparing 0G Storage payload", "Serializing the decision trace and evidence bundle.");
-    await pause(140);
-    const result = await ensureStoredTrace(trace);
-    setTrace(result.trace);
-    setNotice(result.notice);
-    setOperationStep(
-      2,
-      "storage",
-      "Uploading to 0G Storage",
-      result.notice ? "Local fallback saved the payload in this browser." : "Waiting for 0G Storage confirmation."
-    );
-    await pause(180);
-    setOperationStep(
-      3,
-      "complete",
-      "Storage recorded",
-      result.notice ?? "Decision trace is available in 0G Storage."
-    );
+    setOperationStep(2, "storage", "Confirm in wallet", "Approve the 0G Storage upload transaction in your wallet.");
+    try {
+      const result = await ensureStoredTrace(trace);
+      if (result.notice) {
+        showNotice(result.notice, "warn");
+        setOperationProgress(null);
+        setBusy(null);
+        return;
+      }
+      setTrace(result.trace);
+      setOperationStep(3, "complete", "Storage recorded", "Decision trace is available in 0G Storage.");
+      showNotice("Stored on 0G Storage.", "success");
+    } catch (error) {
+      showNotice(formatWalletError(error), "warn");
+      setOperationProgress(null);
+    }
     setBusy(null);
   }
 
   async function registerTrace() {
     if (!trace) return;
     if (!hasStoredTrace) {
-      setNotice("Store on 0G first, then register the trace on-chain.");
+      showNotice("Store on 0G first, then register the trace on-chain.", "warn");
       return;
     }
     if (hasRegisteredTrace) {
-      setNotice("Register On-chain already completed. Continue with Verify Decision.");
+      showNotice("Register On-chain already completed. Continue with Verify Decision.", "info");
       return;
     }
+    try {
+      ensureConnected();
+    } catch (error) {
+      showNotice(formatWalletError(error), "warn");
+      return;
+    }
+
     setBusy("register");
     setNotice(null);
     setOperationStep(1, "chain", "Preparing chain attestation", "Reading the storage URI and trace root.");
-    await pause(140);
-    const result = await ensureRegisteredTrace(trace);
-    setTrace(result.trace);
-    setNotice(result.notice);
-    setOperationStep(
-      2,
-      "chain",
-      "Registering on-chain",
-      result.notice ? "Local fallback recorded the attestation in this browser." : "Waiting for registry confirmation."
-    );
-    await pause(180);
-    setOperationStep(
-      3,
-      "complete",
-      "Attestation ready",
-      result.notice ?? "Trace ID and tx hash are recorded on-chain."
-    );
+    setOperationStep(2, "chain", "Confirm in wallet", "Approve registerDecisionTrace in your wallet.");
+    try {
+      const result = await ensureRegisteredTrace(trace);
+      if (result.notice) {
+        showNotice(result.notice, "warn");
+        setOperationProgress(null);
+        setBusy(null);
+        return;
+      }
+      setTrace(result.trace);
+      setOperationStep(3, "complete", "Attestation ready", "Trace ID and tx hash are recorded on-chain.");
+      showNotice(`Registered on-chain. Trace ID: ${result.trace.attestation?.traceId}.`, "success");
+    } catch (error) {
+      showNotice(formatWalletError(error), "warn");
+      setOperationProgress(null);
+    }
     setBusy(null);
   }
 
   async function verifyTrace() {
     if (!trace) return;
     if (!hasRegisteredTrace) {
-      setNotice("Register On-chain first, then verify the decision.");
+      showNotice("Register On-chain first, then verify the decision.", "warn");
       return;
     }
     if (isVerified) {
-      setNotice("Decision already verified.");
+      showNotice("Decision already verified.", "info");
+      return;
+    }
+    try {
+      ensureConnected();
+    } catch (error) {
+      showNotice(formatWalletError(error), "warn");
       return;
     }
 
     setBusy("verify");
     setNotice(null);
     setOperationStep(1, "verify", "Replaying decision", "Applying the verifier to the current trace.");
-    await pause(140);
-    const verified = applyVerification(trace);
-
-    const result = await updateTraceStatus(verified);
-    saveTrace(result.trace);
-    setTrace(result.trace);
-    setNotice(result.notice ?? "Replay verification complete.");
-    setOperationStep(
-      2,
-      "verify",
-      "Updating verification status",
-      result.notice ? "Local fallback stored the replay result." : "Persisting the replay result on-chain."
-    );
-    await pause(180);
-    setOperationStep(
-      3,
-      "complete",
-      "Replay complete",
-      result.notice ?? `Verification status: ${result.trace.verification.status}.`
-    );
+    setOperationStep(2, "verify", "Confirm in wallet", "Approve updateVerificationStatus in your wallet.");
+    try {
+      const verified = applyVerification(trace);
+      const result = await updateTraceStatus(verified);
+      if (result.notice) {
+        showNotice(result.notice, "warn");
+        setOperationProgress(null);
+        setBusy(null);
+        return;
+      }
+      setTrace(result.trace);
+      setOperationStep(
+        3,
+        "complete",
+        "Replay complete",
+        `Verification status: ${result.trace.verification.status}.`
+      );
+      showNotice(`Verified on-chain: ${result.trace.verification.status}.`, "success");
+    } catch (error) {
+      showNotice(formatWalletError(error), "warn");
+      setOperationProgress(null);
+    }
 
     setBusy(null);
   }
@@ -264,7 +294,7 @@ export function MirrorClient() {
       <section className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
         {notice ? (
           <div className="mb-6">
-            <Notice variant={notice.includes("Local") ? "warn" : "success"}>{notice}</Notice>
+            <Notice variant={noticeVariant}>{notice}</Notice>
           </div>
         ) : null}
 

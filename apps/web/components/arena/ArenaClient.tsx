@@ -19,7 +19,14 @@ import { OperationProgressPanel } from "@/components/shared/OperationProgressPan
 import { MirrorBackground } from "@/components/fx/MirrorBackground";
 import { ExplorerValue } from "@/components/shared/ExplorerValue";
 import { txExplorerHref } from "@/lib/0g/explorer";
-import { ensureStoredTrace, updateTraceStatus } from "@/components/shared/client-actions";
+import { formatWalletError } from "@/lib/wallet/errors";
+import { useWalletPipeline } from "@/lib/wallet/use-wallet-pipeline";
+import {
+  ensureRegisteredTrace,
+  ensureStoredTrace,
+  storeAndAttestVerdict,
+  updateTraceStatus
+} from "@/components/shared/client-actions";
 
 type BusyState = "start" | "verify" | "appeal" | null;
 type AppealPhase = "storage" | "chain" | "judge" | "complete";
@@ -47,8 +54,10 @@ export function ArenaClient() {
   const [verdict, setVerdict] = useState<CourtVerdict | null>(null);
   const [busy, setBusy] = useState<BusyState>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [noticeVariant, setNoticeVariant] = useState<"warn" | "success" | "info">("success");
   const [battling, setBattling] = useState(false);
   const [appealProgress, setAppealProgress] = useState<AppealProgress | null>(null);
+  const { ensureConnected } = useWalletPipeline();
   const hasBothTraces = Boolean(traceA && traceB);
   const hasVerifiedBoth = Boolean(
     traceA?.verification.status === "Verified" && traceB?.verification.status === "Verified"
@@ -84,84 +93,104 @@ export function ArenaClient() {
     }, 800);
   }
 
+  function showNotice(message: string, variant: "warn" | "success" | "info" = "success") {
+    setNotice(message);
+    setNoticeVariant(variant);
+  }
+
   async function verifyBoth() {
     if (!traceA || !traceB) return;
+    try {
+      ensureConnected();
+    } catch (error) {
+      showNotice(formatWalletError(error), "warn");
+      return;
+    }
+
     setBusy("verify");
     setAppealProgress(null);
-    const verifiedA = applyVerification(traceA);
-    const verifiedB = applyVerification(traceB);
-    const updatedA = await updateTraceStatus(verifiedA);
-    const updatedB = await updateTraceStatus(verifiedB);
-    setTraceA(updatedA.trace);
-    setTraceB(updatedB.trace);
-    setNotice(updatedA.notice ?? updatedB.notice ?? "Both decisions replayed. Appeal to Olympus unlocked.");
-    setBusy(null);
+    try {
+      const storedA = await ensureStoredTrace(traceA);
+      if (storedA.notice) {
+        showNotice(storedA.notice, "warn");
+        return;
+      }
+      const registeredA = await ensureRegisteredTrace(storedA.trace);
+      if (registeredA.notice) {
+        showNotice(registeredA.notice, "warn");
+        return;
+      }
+
+      const storedB = await ensureStoredTrace(traceB);
+      if (storedB.notice) {
+        showNotice(storedB.notice, "warn");
+        return;
+      }
+      const registeredB = await ensureRegisteredTrace(storedB.trace);
+      if (registeredB.notice) {
+        showNotice(registeredB.notice, "warn");
+        return;
+      }
+
+      const verifiedA = applyVerification(registeredA.trace);
+      const verifiedB = applyVerification(registeredB.trace);
+      const updatedA = await updateTraceStatus(verifiedA);
+      const updatedB = await updateTraceStatus(verifiedB);
+
+      if (updatedA.notice || updatedB.notice) {
+        showNotice(updatedA.notice ?? updatedB.notice ?? "Verification failed.", "warn");
+        return;
+      }
+
+      setTraceA(updatedA.trace);
+      setTraceB(updatedB.trace);
+      showNotice("Both traces verified on-chain. Appeal to Olympus unlocked.", "success");
+    } catch (error) {
+      showNotice(formatWalletError(error), "warn");
+    } finally {
+      setBusy(null);
+    }
   }
 
   async function appeal() {
     if (!traceA || !traceB) return;
     if (!hasVerifiedBoth) {
-      setNotice("Verify Both Traces first, then Appeal to Olympus.");
+      showNotice("Verify Both Traces first, then Appeal to Olympus.", "warn");
       return;
     }
+    try {
+      ensureConnected();
+    } catch (error) {
+      showNotice(formatWalletError(error), "warn");
+      return;
+    }
+
     setBusy("appeal");
     setNotice(null);
-    setAppealStep(1, "storage", "Preparing 0G Storage payloads", "Checking both traces before upload.");
+    setAppealStep(1, "judge", "Olympus Judge", "Comparing evidence coverage and replay status.");
 
     try {
-      let nextNotice: string | null = null;
-      const rememberNotice = (value: string | null) => {
-        nextNotice = nextNotice ?? value;
-      };
-      const verifiedA = traceA.verification.status === "Pending" ? applyVerification(traceA) : traceA;
-      const verifiedB = traceB.verification.status === "Pending" ? applyVerification(traceB) : traceB;
-
-      setAppealStep(2, "storage", "0G Storage: challenger trace", "Uploading Trace A evidence and hashes.");
-      const storedA = await ensureStoredTrace(verifiedA);
-      rememberNotice(storedA.notice);
-
-      setAppealStep(3, "storage", "0G Storage: defender trace", "Uploading Trace B evidence and hashes.");
-      const storedB = await ensureStoredTrace(verifiedB);
-      rememberNotice(storedB.notice);
-
-      setAppealStep(4, "judge", "Olympus Judge", "Comparing evidence coverage and replay status.");
       const claim = "Trace B ignored critical risk evidence.";
-      const nextVerdict = runOlympusJudge(storedA.trace, storedB.trace, claim);
+      const nextVerdict = runOlympusJudge(traceA, traceB, claim);
 
-      // store verdict, but do not perform chain registration server-side.
-      setAppealStep(5, "storage", "0G Storage: court verdict", "Uploading the Olympus verdict record.");
-      // reuse storage API for verdict upload
-      try {
-        const storage = await fetch("/api/storage/upload", {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ data: nextVerdict })
-        }).then((r) => r.json().catch(() => ({})));
-        const attestedVerdict = { ...nextVerdict, storage } as CourtVerdict;
-        setVerdict(attestedVerdict);
-        setTraceA(storedA.trace);
-        setTraceB(storedB.trace);
-        setNotice(storage ? null : "Stored locally; connect storage credentials for real upload.");
-      } catch (err) {
-        setVerdict(nextVerdict);
-        setTraceA(storedA.trace);
-        setTraceB(storedB.trace);
-        setNotice("Local fallback stored verdict; connect storage for real upload.");
+      setAppealStep(2, "storage", "0G Storage: court verdict", "Confirm the verdict upload in your wallet.");
+      const attested = await storeAndAttestVerdict(nextVerdict, traceA, traceB);
+      if (attested.notice) {
+        showNotice(attested.notice, "warn");
+        return;
       }
 
+      setVerdict(attested.verdict);
       setAppealProgress({
         phase: "complete",
         label: "Olympus verdict attested",
-        detail: "0G Storage URI and chain attestation are ready.",
+        detail: "0G Storage URI and chain attestation are recorded on-chain.",
         step: APPEAL_STEP_TOTAL,
         percent: 100
       });
-      setTraceA(registeredA.trace);
-      setTraceB(registeredB.trace);
-      setVerdict(attestedVerdict.verdict);
-      setNotice(attestedVerdict.notice ?? nextNotice ?? "Olympus verdict attested.");
+      showNotice(`Olympus verdict registered on-chain. Verdict ID: ${attested.verdict.attestation?.verdictId}.`, "success");
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : "Olympus appeal failed.");
+      showNotice(formatWalletError(error), "warn");
     } finally {
       setBusy(null);
     }
@@ -179,7 +208,7 @@ export function ArenaClient() {
             <div>
               <div className="inline-flex items-center gap-2 rounded-full border border-gold/30 bg-gold/8 px-4 py-1.5">
                 <Swords className="h-3.5 w-3.5 text-gold" />
-                <span className="font-mono text-xs uppercase tracking-[0.2em] text-gold">Live Demo Mode</span>
+                <span className="font-mono text-xs uppercase tracking-[0.2em] text-gold">Wallet-native Arena</span>
               </div>
               <h1 className="mt-5 font-display text-5xl font-bold text-white sm:text-6xl">
                 Olympus <span className="text-gold-glow text-gold">Arena</span>
@@ -199,7 +228,7 @@ export function ArenaClient() {
       <section className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
         {notice ? (
           <div className="mb-6">
-            <Notice variant={notice.includes("Local") ? "warn" : "success"}>{notice}</Notice>
+            <Notice variant={noticeVariant}>{notice}</Notice>
           </div>
         ) : null}
 
@@ -306,7 +335,7 @@ export function ArenaClient() {
               animate={{ opacity: 1, y: 0, scale: 1 }}
               transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
             >
-              <VerdictCard verdict={verdict} traceA={traceA} traceB={traceB} />
+              <VerdictCard verdict={verdict} />
             </motion.div>
           ) : null}
         </AnimatePresence>

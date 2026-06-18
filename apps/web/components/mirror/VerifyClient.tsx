@@ -15,6 +15,8 @@ import { StatusPill } from "@/components/shared/StatusPill";
 import { TraceCard } from "@/components/shared/TraceCard";
 import { MirrorBackground } from "@/components/fx/MirrorBackground";
 import { updateTraceStatus } from "@/components/shared/client-actions";
+import { formatWalletError } from "@/lib/wallet/errors";
+import { useWalletPipeline } from "@/lib/wallet/use-wallet-pipeline";
 import { ExplorerValue } from "@/components/shared/ExplorerValue";
 import { txExplorerHref } from "@/lib/0g/explorer";
 
@@ -24,7 +26,9 @@ export function VerifyClient({ traceId }: { traceId: string }) {
   const [trace, setTrace] = useState<DecisionTrace | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+  const [noticeVariant, setNoticeVariant] = useState<"warn" | "success" | "info">("success");
   const [busy, setBusy] = useState(false);
+  const { ensureConnected } = useWalletPipeline();
 
   useEffect(() => {
     setTrace(getTrace(traceId));
@@ -33,13 +37,33 @@ export function VerifyClient({ traceId }: { traceId: string }) {
 
   async function replay() {
     if (!trace) return;
+    try {
+      ensureConnected();
+    } catch (error) {
+      setNotice(formatWalletError(error));
+      setNoticeVariant("warn");
+      return;
+    }
+
     setBusy(true);
-    const verified = applyVerification(trace);
-    const updated = await updateTraceStatus(verified);
-    saveTrace(updated.trace);
-    setTrace(updated.trace);
-    setNotice(updated.notice ?? "Replay verification complete.");
-    setBusy(false);
+    try {
+      const verified = applyVerification(trace);
+      const updated = await updateTraceStatus(verified);
+      if (updated.notice) {
+        setNotice(updated.notice);
+        setNoticeVariant("warn");
+        return;
+      }
+      saveTrace(updated.trace);
+      setTrace(updated.trace);
+      setNotice(`Verified on-chain: ${updated.trace.verification.status}.`);
+      setNoticeVariant("success");
+    } catch (error) {
+      setNotice(formatWalletError(error));
+      setNoticeVariant("warn");
+    } finally {
+      setBusy(false);
+    }
   }
 
   return (
@@ -72,7 +96,7 @@ export function VerifyClient({ traceId }: { traceId: string }) {
       <section className="mx-auto max-w-5xl px-4 py-10 sm:px-6 lg:px-8">
         {notice ? (
           <div className="mb-6">
-            <Notice variant="success">{notice}</Notice>
+            <Notice variant={noticeVariant}>{notice}</Notice>
           </div>
         ) : null}
 
