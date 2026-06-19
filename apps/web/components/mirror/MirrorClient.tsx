@@ -59,7 +59,7 @@ export function MirrorClient() {
   const [noticeVariant, setNoticeVariant] = useState<"warn" | "success" | "info">("success");
   const [operationProgress, setOperationProgress] = useState<OperationProgressState | null>(null);
   const [showConfetti, setShowConfetti] = useState(false);
-  const { ensureConnected, wrongNetwork } = useWalletPipeline();
+  const { ensureConnected } = useWalletPipeline();
 
   const selectedAgent = agents[agentId];
   const selectedTask = tasks[taskId];
@@ -133,20 +133,10 @@ export function MirrorClient() {
       showNotice("Store on 0G already completed. Continue with Register On-chain.", "info");
       return;
     }
-    try {
-      ensureConnected();
-    } catch (error) {
-      showNotice(formatWalletError(error), "warn");
-      return;
-    }
-    if (wrongNetwork) {
-      showNotice("Switch to 0G Galileo Testnet in your wallet, then try again.", "warn");
-    }
-
     setBusy("store");
     setNotice(null);
     setOperationStep(1, "storage", "Preparing 0G Storage payload", "Serializing the decision trace and evidence bundle.");
-    setOperationStep(2, "storage", "Confirm in wallet", "Approve the 0G Storage upload transaction in your wallet.");
+    setOperationStep(2, "storage", "Uploading to 0G Storage", "Sending the trace through the 0G Storage API route.");
     try {
       const result = await ensureStoredTrace(trace);
       if (result.notice) {

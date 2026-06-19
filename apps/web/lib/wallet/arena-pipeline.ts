@@ -43,15 +43,14 @@ export function planVerifyBothSteps(traceA: DecisionTrace, traceB: DecisionTrace
   const needsRegisterB = !traceB.attestation?.traceId;
   const needsVerifyA = traceA.verification.status === "Pending";
   const needsVerifyB = traceB.verification.status === "Pending";
+  const storageStepCount = (needsStoreA ? 1 : 0) + (needsStoreB ? 1 : 0);
 
   const walletTxCount =
-    (needsStoreA ? 1 : 0) +
-    (needsStoreB ? 1 : 0) +
     (needsRegisterA || needsRegisterB ? 1 : 0) +
     (needsVerifyA || needsVerifyB ? 1 : 0);
 
   const totalSteps =
-    walletTxCount + (needsVerifyA || needsVerifyB ? 1 : 0);
+    storageStepCount + walletTxCount + (needsVerifyA || needsVerifyB ? 1 : 0);
 
   return {
     needsStoreA,
@@ -60,6 +59,7 @@ export function planVerifyBothSteps(traceA: DecisionTrace, traceB: DecisionTrace
     needsRegisterB,
     needsVerifyA,
     needsVerifyB,
+    storageStepCount,
     walletTxCount,
     totalSteps
   };
@@ -89,12 +89,12 @@ export async function verifyBothTracesWithWallet(
   let currentB = traceB;
 
   if (plan.needsStoreA) {
-    progress("storage", "0G Storage", "Confirm challenger trace upload in your wallet.");
+    progress("storage", "0G Storage", "Uploading challenger Decision Trace through the storage API.");
     currentA = await storeTraceWithWallet(currentA);
   }
 
   if (plan.needsStoreB) {
-    progress("storage", "0G Storage", "Confirm defender trace upload in your wallet.");
+    progress("storage", "0G Storage", "Uploading defender Decision Trace through the storage API.");
     currentB = await storeTraceWithWallet(currentB);
   }
 

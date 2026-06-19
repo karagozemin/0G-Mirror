@@ -86,3 +86,24 @@ export async function uploadJsonWithWallet(data: unknown): Promise<UploadResult>
     txHash
   };
 }
+
+export async function uploadJsonViaStorageApi(data: unknown): Promise<UploadResult> {
+  const response = await fetch("/api/storage/upload", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ data })
+  });
+  const payload = await response.json().catch(() => null) as
+    | ({ error?: string } & Partial<UploadResult>)
+    | null;
+
+  if (!response.ok || !payload?.uri || !payload.root) {
+    throw new Error(payload?.error ?? `0G Storage upload failed with HTTP ${response.status}.`);
+  }
+
+  return {
+    uri: payload.uri,
+    root: payload.root,
+    txHash: payload.txHash
+  };
+}

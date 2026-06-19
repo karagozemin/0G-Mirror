@@ -45,6 +45,17 @@ function parseStorageUri(uri: string) {
   throw new Error(`Unsupported 0G storage URI: ${uri}`);
 }
 
+function storageErrorMessage(error: unknown, fallback: string) {
+  if (!error) return fallback;
+  if (error instanceof Error) return error.message;
+  if (typeof error === "string") return error;
+  try {
+    return JSON.stringify(error);
+  } catch {
+    return fallback;
+  }
+}
+
 export async function uploadJsonTo0G(data: unknown): Promise<UploadResult> {
   const { evmRpc, indexerRpc, privateKey } = storageConfig();
   const { Indexer, MemData } = await import("@0gfoundation/0g-storage-ts-sdk");
@@ -53,7 +64,7 @@ export async function uploadJsonTo0G(data: unknown): Promise<UploadResult> {
   const [tree, treeError] = await file.merkleTree();
 
   if (treeError || !tree) {
-    throw treeError ?? new Error("Unable to compute 0G merkle root.");
+    throw new Error(storageErrorMessage(treeError, "Unable to compute 0G merkle root."));
   }
 
   const provider = new ethers.JsonRpcProvider(evmRpc);
@@ -62,7 +73,7 @@ export async function uploadJsonTo0G(data: unknown): Promise<UploadResult> {
   const [upload, uploadError] = await indexer.upload(file, evmRpc, signer as never);
 
   if (uploadError || !upload) {
-    throw uploadError ?? new Error("0G Storage upload failed.");
+    throw new Error(storageErrorMessage(uploadError, "0G Storage upload failed."));
   }
 
   const uploadedRoot = "rootHash" in upload ? upload.rootHash : upload.rootHashes[0] ?? tree.rootHash();

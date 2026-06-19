@@ -3,7 +3,7 @@
 import type { CourtVerdict } from "@/lib/schemas/court-verdict";
 import type { DecisionTrace } from "@/lib/schemas/decision-trace";
 import { applyVerification } from "@/lib/ai/verifier";
-import { uploadJsonWithWallet } from "@/lib/0g/client-storage";
+import { uploadJsonViaStorageApi } from "@/lib/0g/client-storage";
 import galileoChain from "@/lib/wallet/chains";
 import { getRegistryAddress } from "@/lib/wallet/require";
 import {
@@ -16,7 +16,7 @@ import { saveTrace, saveVerdict } from "@/lib/utils/local-store";
 export async function storeTraceWithWallet(trace: DecisionTrace): Promise<DecisionTrace> {
   if (trace.storage?.uri) return trace;
 
-  const upload = await uploadJsonWithWallet(trace);
+  const upload = await uploadJsonViaStorageApi(trace);
   const nextTrace: DecisionTrace = {
     ...trace,
     storage: {
@@ -79,7 +79,7 @@ export async function verifyTraceWithWallet(trace: DecisionTrace): Promise<Decis
 export async function storeVerdictWithWallet(verdict: CourtVerdict): Promise<CourtVerdict> {
   if (verdict.storage?.uri) return verdict;
 
-  const upload = await uploadJsonWithWallet(verdict);
+  const upload = await uploadJsonViaStorageApi(verdict);
   const nextVerdict: CourtVerdict = {
     ...verdict,
     storage: {
