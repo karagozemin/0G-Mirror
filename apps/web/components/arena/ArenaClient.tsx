@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { CheckCircle2, Crown, Database, Gavel, Loader2, Scale, ShieldCheck, Swords, Trophy, Zap } from "lucide-react";
 import { agents, runAgentDecision, type AgentId } from "@/lib/ai/agent";
@@ -16,6 +16,7 @@ import { StatusPill } from "@/components/shared/StatusPill";
 import { TraceCard } from "@/components/shared/TraceCard";
 import { OperationProgressPanel } from "@/components/shared/OperationProgressPanel";
 import { MirrorBackground } from "@/components/fx/MirrorBackground";
+import { ConfettiBurst } from "@/components/fx/ConfettiBurst";
 import { ExplorerValue } from "@/components/shared/ExplorerValue";
 import { storageExplorerHref, txExplorerHref } from "@/lib/0g/explorer";
 import { formatWalletError } from "@/lib/wallet/errors";
@@ -27,6 +28,7 @@ import {
 import { isTraceAppealReady } from "@/lib/utils/trace-ready";
 import { verifyBothTracesWithWallet, planVerifyBothSteps, type ArenaProgressUpdate } from "@/lib/wallet/arena-pipeline";
 import type { OperationProgressState } from "@/components/shared/OperationProgressPanel";
+import { celebrateSuccess } from "@/lib/utils/celebrate";
 
 type BusyState = "start" | "verify" | "appeal" | null;
 
@@ -55,11 +57,21 @@ export function ArenaClient() {
   const [operationProgress, setOperationProgress] = useState<OperationProgressState | null>(null);
   const [operationTotalSteps, setOperationTotalSteps] = useState(0);
   const [operationAccent, setOperationAccent] = useState<"gold" | "beam">("gold");
+  const [showConfetti, setShowConfetti] = useState(false);
+  const verdictRef = useRef<HTMLDivElement | null>(null);
   const { ensureConnected } = useWalletPipeline();
   const hasBothTraces = Boolean(traceA && traceB);
   const canAppeal = isTraceAppealReady(traceA) && isTraceAppealReady(traceB);
   const verifyWalletTxCount =
     traceA && traceB ? planVerifyBothSteps(traceA, traceB).walletTxCount : null;
+
+  useEffect(() => {
+    if (!verdict) return;
+    const timer = window.setTimeout(() => {
+      verdictRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 140);
+    return () => window.clearTimeout(timer);
+  }, [verdict]);
 
   function setArenaProgress(update: ArenaProgressUpdate) {
     setOperationProgress({
@@ -174,6 +186,8 @@ export function ArenaClient() {
         percent: 100
       });
       showNotice(`Olympus verdict registered on-chain. Verdict ID: ${attested.attestation?.verdictId}.`, "success");
+      setShowConfetti(true);
+      celebrateSuccess();
     } catch (error) {
       showNotice(formatWalletError(error), "warn");
       setOperationProgress(null);
@@ -184,6 +198,7 @@ export function ArenaClient() {
 
   return (
     <Shell>
+      <ConfettiBurst active={showConfetti} onDone={() => setShowConfetti(false)} />
       {/* Arena Header */}
       <section className="relative overflow-hidden border-b border-line">
         <MirrorBackground variant="arena" />
@@ -327,6 +342,7 @@ export function ArenaClient() {
         <AnimatePresence>
           {verdict ? (
             <motion.div
+              ref={verdictRef}
               initial={{ opacity: 0, y: 32, scale: 0.95 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
               transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
